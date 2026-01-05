@@ -10,7 +10,11 @@ WINDOW_HEIGHT = 900
 SWORD_SPEED = 10
 SWORD_MAX_ATTACK = 100
 PLAYER_SWORD_SPEED = 10
-PLAYER_SWORD_MAX_ATTACK = 150
+PLAYER_SWORD_MAX_ATTACK = 200
+KNIGF_HEALTH = 100
+SKELETON_HEALTH = 50
+PLAYER_SWORD_DAMAGE = 50
+SKELETON_SWORD_DAMAGE = 15
 
 CHARACTER_SCALING = 1
 TILE_SCALING = 2.5
@@ -18,6 +22,7 @@ COIN_SCALING = 0.5
 SPRITE_PIXEL_SIZE = 128
 GRID_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING * 2
 KNIGF_MOVEMENT_SPEED = 1
+SKELETON_MOVEMENT_SPEED = 0.8
 
 PLAYER_MOVEMENT_SPEED = 10
 GRAVITY = 0
@@ -26,14 +31,113 @@ FOLLOW_DECAY_CONST = 0.1
 MOVEMENT_SPEED = 5
 
 
-class GameView(arcade.View):
+class Enemy(arcade.Sprite):
+    def __init__(self, texture, scale=0.5, health=100, damage=20, attack_cooldown=60, attack_range=300):
+        super().__init__(texture, scale=scale)
+        self.health = health
+        self.max_health = health
+        self.damage = damage
+        self.attack_cooldown = attack_cooldown
+        self.current_cooldown = 0
+        self.is_alive = True
+        self.attack_range = attack_range
 
+    def take_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.health = 0
+            self.is_alive = False
+            return True
+        return False
+
+    def update_cooldown(self):
+        if self.current_cooldown > 0:
+            self.current_cooldown -= 1
+
+    def can_attack(self):
+        return self.is_alive and self.current_cooldown == 0
+
+    def coldown(self):
+        self.current_cooldown = self.attack_cooldown
+
+class Boss(Enemy):
+    def __init__(self, texture):
+        super().__init__(texture, scale=1.5, health=400, damage=10, attack_cooldown=60, attack_range=1000)
+        self.movement_speed = 1
+        self.sword_texture = "assets/images/меч_1.png"
+        self.sword_scale = 0.4
+        self.sword_speed = 20
+        self.enemy_type = "boss"
+        self.score_value = 300
+
+class Ghost(Enemy):
+    def __init__(self, texture):
+        super().__init__(texture, scale=0.3, health=120, damage=10, attack_cooldown=60, attack_range=300)
+        self.movement_speed = KNIGF_MOVEMENT_SPEED
+        self.sword_texture = "assets/images/меч_1.png"
+        self.sword_scale = 0.1
+        self.sword_speed = SWORD_SPEED
+        self.enemy_type = "ghost"
+        self.score_value = 15
+
+class Goblin(Enemy):
+    def __init__(self, texture, scale=0.5):
+        super().__init__(texture, scale=scale, health=80, damage=10, attack_cooldown=60, attack_range=300)
+        self.movement_speed = KNIGF_MOVEMENT_SPEED
+        self.sword_texture = "assets/images/меч_1.png"
+        self.sword_scale = 0.05
+        self.sword_speed = SWORD_SPEED
+        self.enemy_type = "goblin"
+        self.score_value = 15
+
+
+class Knigf(Enemy):
+    def __init__(self, texture, scale=0.5):
+        super().__init__(texture, scale=scale, health=KNIGF_HEALTH, damage=20, attack_cooldown=60, attack_range=300)
+        self.movement_speed = KNIGF_MOVEMENT_SPEED
+        self.sword_texture = "assets/images/меч_1.png"
+        self.sword_scale = 0.1
+        self.sword_speed = SWORD_SPEED
+        self.enemy_type = "knigf"
+        self.score_value = 15
+
+class Spider(Enemy):
+    def __init__(self, texture, scale=0.5):
+        super().__init__(texture, scale=scale, health=25, damage=5, attack_cooldown=30, attack_range=300)
+        self.movement_speed = 1.5
+        self.sword_texture = "assets/images/паутина1.png"
+        self.sword_scale = 0.1
+        self.sword_speed = SWORD_SPEED
+        self.enemy_type = "spider"
+        self.score_value = 5
+
+class Skeleton(Enemy):
+    def __init__(self, texture, scale=0.5):
+        super().__init__(texture, scale=scale, health=SKELETON_HEALTH,
+                         damage=SKELETON_SWORD_DAMAGE, attack_cooldown=90, attack_range=300)
+        self.movement_speed = SKELETON_MOVEMENT_SPEED
+        self.sword_texture = "assets/images/кост_меч.png"
+        self.sword_scale = 0.3
+        self.sword_speed = SWORD_SPEED * 0.8
+        self.enemy_type = "skeleton"
+        self.score_value = 5
+
+
+class EnemySword(arcade.Sprite):
+    def __init__(self, texture, scale, damage):
+        super().__init__(texture, scale=scale)
+        self.damage = damage
+        self.start_x = 0
+        self.start_y = 0
+
+
+class GameView(arcade.View):
     def __init__(self):
         super().__init__()
         self.sword_list = arcade.SpriteList()
         self.player_sword_list = arcade.SpriteList()
-        self.player_health = 100
-        self.max_health = 100
+        self.player_health = 1000
+        self.max_health = 1000
         self.heal_rate = 1
         self.heal_timer = 0
 
@@ -41,12 +145,15 @@ class GameView(arcade.View):
 
         self.player_texture = arcade.load_texture("assets/images/рыцарь.png")
         self.knigf_texture = arcade.load_texture("assets/images/темный_рыцарь.png")
+        self.skeleton_texture = arcade.load_texture("assets/images/скелет.png")
+        self.spider_texture = arcade.load_texture("assets/images/паук.png")
+        self.goblin_texture = arcade.load_texture("assets/images/гоблин.png")
+        self.ghost_texture = arcade.load_texture("assets/images/призрак.png")
+        self.boss_texture = arcade.load_texture("assets/images/темный_рыцарь.png")
         self.tile_map = None
 
         self.camera_sprites = arcade.Camera2D()
-
         self.camera_bounds = self.window.rect
-
         self.camera_gui = arcade.Camera2D()
 
         self.scene = self.create_scene()
@@ -54,15 +161,7 @@ class GameView(arcade.View):
         self.player_sprite = arcade.Sprite(self.player_texture, scale=0.2)
         self.player_sprite.center_x = 128
         self.player_sprite.center_y = 128
-        self.knigf_list = arcade.SpriteList()
-        knigf_sprite = arcade.Sprite(self.knigf_texture, scale=0.5)
-        knigf_sprite.center_x = 500
-        knigf_sprite.center_y = 500
-        self.knigf_list.append(knigf_sprite)
-        knigf_sprite = arcade.Sprite(self.knigf_texture, scale=0.5)
-        knigf_sprite.center_x = 200
-        knigf_sprite.center_y = 200
-        self.knigf_list.append(knigf_sprite)
+
         self.player_sprite.change_x = 0
 
         self.physics_engine = arcade.PhysicsEnginePlatformer(
@@ -113,9 +212,7 @@ class GameView(arcade.View):
         self.player_attack_max_cooldown = 60
 
     def create_scene(self):
-
         map_path = Path("assets/maps/map_4.tmx")
-
         layer_options = {
             "castle1": {
                 "use_spatial_hash": True,
@@ -139,13 +236,63 @@ class GameView(arcade.View):
 
         return arcade.Scene.from_tilemap(tile_map)
 
-    def reset(self):
+    def reload(self):
+        self.player_sprite.center_x = 128
+        self.player_sprite.center_y = 128
         self.score = 0
         self.player_health = self.max_health
         self.scene = self.create_scene()
         self.scene.add_sprite("Player", self.player_sprite)
-        for knigf in self.knigf_list:
-            self.scene.add_sprite("knigf", knigf)
+
+        self.all_enemies = arcade.SpriteList()
+        goblin_sprite = Goblin(self.goblin_texture, scale=0.2)
+        goblin_sprite.center_x = 1000
+        goblin_sprite.center_y = 1000
+        self.all_enemies.append(goblin_sprite)
+
+        spider_sprite = Spider(self.spider_texture, scale=0.1)
+        spider_sprite.center_x = 800
+        spider_sprite.center_y = 800
+        self.all_enemies.append(spider_sprite)
+
+        boss_sprite = Boss(self.boss_texture)
+        boss_sprite.center_x = 1200
+        boss_sprite.center_y = 1600
+        self.all_enemies.append(boss_sprite)
+
+        ghost_sprite = Ghost(self.ghost_texture)
+        ghost_sprite.center_x = 800
+        ghost_sprite.center_y = 400
+        self.all_enemies.append(ghost_sprite)
+
+        knigf_sprite = Knigf(self.knigf_texture, scale=0.5)
+        knigf_sprite.center_x = 500
+        knigf_sprite.center_y = 500
+        self.all_enemies.append(knigf_sprite)
+
+        knigf_sprite = Knigf(self.knigf_texture, scale=0.5)
+        knigf_sprite.center_x = 200
+        knigf_sprite.center_y = 200
+        self.all_enemies.append(knigf_sprite)
+
+        skeleton_sprite = Skeleton(self.skeleton_texture, scale=0.04)
+        skeleton_sprite.center_x = 300
+        skeleton_sprite.center_y = 300
+        self.all_enemies.append(skeleton_sprite)
+
+        skeleton_sprite = Skeleton(self.skeleton_texture, scale=0.04)
+        skeleton_sprite.center_x = 400
+        skeleton_sprite.center_y = 400
+        self.all_enemies.append(skeleton_sprite)
+
+        skeleton_sprite = Skeleton(self.skeleton_texture, scale=0.04)
+        skeleton_sprite.center_x = 600
+        skeleton_sprite.center_y = 600
+        self.all_enemies.append(skeleton_sprite)
+
+        for enemy in self.all_enemies: # добавление в сцену
+            self.scene.add_sprite(enemy.enemy_type, enemy)
+
         self.scene.add_sprite_list("Swords")
         self.scene.add_sprite_list("PlayerSwords")
         self.update_health_table()
@@ -184,39 +331,39 @@ class GameView(arcade.View):
         elif key == arcade.key.LEFT or key == arcade.key.RIGHT or key == arcade.key.D or key == arcade.key.A:
             self.player_sprite.change_x = 0
 
-    def first_knigf(self):
-        if len(self.knigf_list) == 0:
-            return None
-
-        first_knigf = None
+    def first_monstr(self):
+        first_enemy = None
         closest_distance = 100000000
 
-        for knigf in self.knigf_list:
+        for enemy in self.all_enemies:
+            if not enemy.is_alive:
+                continue
+
             distance = math.sqrt(
-                (knigf.center_x - self.player_sprite.center_x) ** 2 +
-                (knigf.center_y - self.player_sprite.center_y) ** 2
+                (enemy.center_x - self.player_sprite.center_x) ** 2 +
+                (enemy.center_y - self.player_sprite.center_y) ** 2
             )
 
             if distance < closest_distance:
                 closest_distance = distance
-                first_knigf = knigf
+                first_enemy = enemy
 
-        return first_knigf
+        return first_enemy
 
-    def player_attack(self):
+    def player_attack(self): # создание меча игрока
         if self.player_attack_cooldown > 0:
             return None
 
-        first_knigf = self.first_knigf()
+        first_enemy = self.first_monstr()
 
-        if first_knigf == None:
+        if first_enemy is None:
             return None
 
         start_x = self.player_sprite.center_x
         start_y = self.player_sprite.center_y
 
-        dest_x = first_knigf.center_x
-        dest_y = first_knigf.center_y
+        dest_x = first_enemy.center_x
+        dest_y = first_enemy.center_y
 
         x_diff = dest_x - start_x
         y_diff = dest_y - start_y
@@ -239,7 +386,6 @@ class GameView(arcade.View):
         self.player_attack_cooldown = self.player_attack_max_cooldown
 
     def take_damage(self, uron):
-
         self.player_health -= uron
         if self.player_health < 0:
             self.player_health = 0
@@ -247,8 +393,8 @@ class GameView(arcade.View):
 
         self.update_health_table()
 
-    def game_over(self):  # сюда я в будущем добавлю окно проигрыша
-        self.reset()
+    def game_over(self):
+        self.reload()
 
     def update_health_table(self):
         health_width = self.player_health / self.max_health
@@ -274,8 +420,42 @@ class GameView(arcade.View):
             self.camera_sprites.view_data, self.camera_bounds
         )
 
-    def on_update(self, delta_time: float):
+    def enemy_attack(self, enemy):
+        if not enemy.is_alive:
+            return
 
+        start_x = enemy.center_x
+        start_y = enemy.center_y
+        dest_x = self.player_sprite.center_x
+        dest_y = self.player_sprite.center_y
+
+        x_diff = dest_x - start_x
+        y_diff = dest_y - start_y
+        angle = -math.atan2(y_diff, x_diff) + 3.14 / 2
+
+        sword = EnemySword(enemy.sword_texture, scale=enemy.sword_scale, damage=enemy.damage)
+        sword.center_x = start_x
+        sword.center_y = start_y
+
+        sword.start_x = start_x
+        sword.start_y = start_y
+
+        sword.angle = math.degrees(angle) - 90
+
+        sword.change_x = math.sin(angle) * enemy.sword_speed
+        sword.change_y = math.cos(angle) * enemy.sword_speed
+
+        self.sword_list.append(sword)
+        enemy.coldown()
+
+    def dead_enemies_del(self):
+        for i in self.all_enemies:
+            if not i.is_alive and i in self.all_enemies:
+                self.all_enemies.remove(i)
+                i.remove_from_sprite_lists() # удаление из сцены
+
+
+    def on_update(self, delta_time: float):
         self.heal_timer += delta_time
         if self.heal_timer >= 2 and self.player_health < self.max_health:
             self.player_health += self.heal_rate
@@ -289,41 +469,31 @@ class GameView(arcade.View):
         if self.player_attack_cooldown > 0:
             self.player_attack_cooldown -= 1
 
-        for knigf in self.knigf_list:
-            if self.player_sprite.center_x < knigf.center_x:
-                knigf.center_x -= KNIGF_MOVEMENT_SPEED
-            elif self.player_sprite.center_x > knigf.center_x:
-                knigf.center_x += KNIGF_MOVEMENT_SPEED
-            if self.player_sprite.center_y < knigf.center_y:
-                knigf.center_y -= KNIGF_MOVEMENT_SPEED
-            elif self.player_sprite.center_y > knigf.center_y:
-                knigf.center_y += KNIGF_MOVEMENT_SPEED
+        for i in self.all_enemies:
+            if not i.is_alive:
+                continue
 
-            start_x = knigf.center_x
-            start_y = knigf.center_y
-            dest_x = self.player_sprite.center_x
-            dest_y = self.player_sprite.center_y
+            i.update_cooldown()
 
-            x_diff = dest_x - start_x
-            y_diff = dest_y - start_y
-            angle = -math.atan2(y_diff, x_diff) + 3.14 / 2
+            if self.player_sprite.center_x < i.center_x:
+                i.center_x -= i.movement_speed
+            elif self.player_sprite.center_x > i.center_x:
+                i.center_x += i.movement_speed
+            if self.player_sprite.center_y < i.center_y:
+                i.center_y -= i.movement_speed
+            elif self.player_sprite.center_y > i.center_y:
+                i.center_y += i.movement_speed
 
-            if self.frame_count % 60 == 0:
-                sword = arcade.Sprite("assets/images/меч_1.png", scale=0.1)
-                sword.center_x = start_x
-                sword.center_y = start_y
+            if i.can_attack():
+                distance_to_player = math.sqrt(
+                    (i.center_x - self.player_sprite.center_x) ** 2 +
+                    (i.center_y - self.player_sprite.center_y) ** 2
+                )
 
-                sword.start_x = start_x
-                sword.start_y = start_y
+                if distance_to_player < i.attack_range:
+                    self.enemy_attack(i)
 
-                sword.angle = math.degrees(angle) - 90
-
-                sword.change_x = math.sin(angle) * SWORD_SPEED
-                sword.change_y = math.cos(angle) * SWORD_SPEED
-
-                self.sword_list.append(sword)
-
-        for sword in self.sword_list:  # здесь я проверяю столкновение меча врага с игроком
+        for sword in self.sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
                 (sword.center_y - sword.start_y) ** 2
@@ -334,21 +504,45 @@ class GameView(arcade.View):
 
             if arcade.check_for_collision(self.player_sprite, sword):
                 sword.remove_from_sprite_lists()
-                self.take_damage(20)
+                damage_amount = sword.damage #2
+                self.take_damage(damage_amount)
+
+        swords_remove = []
+        enemies_kill = []
+
         for sword in self.player_sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
                 (sword.center_y - sword.start_y) ** 2
             )
             if distance_traveled > PLAYER_SWORD_MAX_ATTACK:
-                sword.remove_from_sprite_lists()
+                swords_remove.append(sword)
                 continue
-            for knigf in self.knigf_list:  # Здесь я проверяю столкновение меча игрока с темным рыцарем
-                if arcade.check_for_collision(sword, knigf):
-                    sword.remove_from_sprite_lists()
-                    knigf.remove_from_sprite_lists()
-                    self.score += 10
+
+            for j in self.all_enemies:
+                if not j.is_alive:
+                    continue
+
+                if arcade.check_for_collision(sword, j):
+                    swords_remove.append(sword)
+
+                    dead = j.take_damage(PLAYER_SWORD_DAMAGE)
+
+                    if dead:
+                        enemies_kill.append(j)
+                        self.score += j.score_value
+
                     break
+
+        for sword in swords_remove:
+            if sword in self.player_sword_list:
+                sword.remove_from_sprite_lists()
+
+        for i in enemies_kill:
+            i.is_alive = False
+            self.dead_enemies_del()
+
+        self.dead_enemies_del()
 
         self.sword_list.update()
         self.player_sword_list.update()
@@ -364,7 +558,7 @@ class GameView(arcade.View):
 def main():
     window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
     game = GameView()
-    game.reset()
+    game.reload()
 
     window.show_view(game)
     arcade.run()
