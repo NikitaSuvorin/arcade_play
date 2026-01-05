@@ -16,6 +16,8 @@ SKELETON_HEALTH = 50
 PLAYER_SWORD_DAMAGE = 50
 SKELETON_SWORD_DAMAGE = 15
 
+BOSS_SWORD_MAX_ATTACK = 500
+
 CHARACTER_SCALING = 1
 TILE_SCALING = 2.5
 COIN_SCALING = 0.5
@@ -32,7 +34,7 @@ MOVEMENT_SPEED = 5
 
 
 class Enemy(arcade.Sprite):
-    def __init__(self, texture, scale=0.5, health=100, damage=20, attack_cooldown=60, attack_range=300):
+    def __init__(self, texture, scale=0.5, health=100, damage=20, attack_cooldown=60, attack_range=300, sword_max_range=SWORD_MAX_ATTACK):
         super().__init__(texture, scale=scale)
         self.health = health
         self.max_health = health
@@ -41,6 +43,7 @@ class Enemy(arcade.Sprite):
         self.current_cooldown = 0
         self.is_alive = True
         self.attack_range = attack_range
+        self.sword_max_range = sword_max_range
 
     def take_damage(self, damage):
         self.health -= damage
@@ -60,15 +63,27 @@ class Enemy(arcade.Sprite):
     def coldown(self):
         self.current_cooldown = self.attack_cooldown
 
+
+class EnemySword(arcade.Sprite):
+    def __init__(self, texture, scale, damage, max_range=SWORD_MAX_ATTACK):
+        super().__init__(texture, scale=scale)
+        self.damage = damage
+        self.start_x = 0
+        self.start_y = 0
+        self.max_range = max_range
+
+
 class Boss(Enemy):
     def __init__(self, texture):
-        super().__init__(texture, scale=1.5, health=400, damage=10, attack_cooldown=60, attack_range=1000)
-        self.movement_speed = 1
+        super().__init__(texture, scale=1.5, health=400, damage=10, attack_cooldown=180,
+                         attack_range=1000, sword_max_range=BOSS_SWORD_MAX_ATTACK)
+        self.movement_speed = 0.1
         self.sword_texture = "assets/images/меч_1.png"
         self.sword_scale = 0.4
-        self.sword_speed = 20
+        self.sword_speed = 10
         self.enemy_type = "boss"
         self.score_value = 300
+
 
 class Ghost(Enemy):
     def __init__(self, texture):
@@ -79,6 +94,7 @@ class Ghost(Enemy):
         self.sword_speed = SWORD_SPEED
         self.enemy_type = "ghost"
         self.score_value = 15
+
 
 class Goblin(Enemy):
     def __init__(self, texture, scale=0.5):
@@ -101,6 +117,7 @@ class Knigf(Enemy):
         self.enemy_type = "knigf"
         self.score_value = 15
 
+
 class Spider(Enemy):
     def __init__(self, texture, scale=0.5):
         super().__init__(texture, scale=scale, health=25, damage=5, attack_cooldown=30, attack_range=300)
@@ -110,6 +127,7 @@ class Spider(Enemy):
         self.sword_speed = SWORD_SPEED
         self.enemy_type = "spider"
         self.score_value = 5
+
 
 class Skeleton(Enemy):
     def __init__(self, texture, scale=0.5):
@@ -121,14 +139,6 @@ class Skeleton(Enemy):
         self.sword_speed = SWORD_SPEED * 0.8
         self.enemy_type = "skeleton"
         self.score_value = 5
-
-
-class EnemySword(arcade.Sprite):
-    def __init__(self, texture, scale, damage):
-        super().__init__(texture, scale=scale)
-        self.damage = damage
-        self.start_x = 0
-        self.start_y = 0
 
 
 class GameView(arcade.View):
@@ -432,8 +442,8 @@ class GameView(arcade.View):
         x_diff = dest_x - start_x
         y_diff = dest_y - start_y
         angle = -math.atan2(y_diff, x_diff) + 3.14 / 2
-
-        sword = EnemySword(enemy.sword_texture, scale=enemy.sword_scale, damage=enemy.damage)
+        sword = EnemySword(enemy.sword_texture, scale=enemy.sword_scale,
+                          damage=enemy.damage, max_range=enemy.sword_max_range)
         sword.center_x = start_x
         sword.center_y = start_y
 
@@ -452,8 +462,7 @@ class GameView(arcade.View):
         for i in self.all_enemies:
             if not i.is_alive and i in self.all_enemies:
                 self.all_enemies.remove(i)
-                i.remove_from_sprite_lists() # удаление из сцены
-
+                i.remove_from_sprite_lists()
 
     def on_update(self, delta_time: float):
         self.heal_timer += delta_time
@@ -493,19 +502,24 @@ class GameView(arcade.View):
                 if distance_to_player < i.attack_range:
                     self.enemy_attack(i)
 
+        swords_del = []
         for sword in self.sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
                 (sword.center_y - sword.start_y) ** 2
             )
-
-            if distance_traveled > SWORD_MAX_ATTACK:
-                sword.remove_from_sprite_lists()
+            if distance_traveled > sword.max_range:
+                swords_del.append(sword)
+                continue
 
             if arcade.check_for_collision(self.player_sprite, sword):
-                sword.remove_from_sprite_lists()
-                damage_amount = sword.damage #2
+                swords_del.append(sword)
+                damage_amount = sword.damage
                 self.take_damage(damage_amount)
+
+        for sword in swords_del:
+            if sword in self.sword_list:
+                sword.remove_from_sprite_lists()
 
         swords_remove = []
         enemies_kill = []
