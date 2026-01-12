@@ -156,6 +156,9 @@ class New_sword(arcade.Sprite):
 class GameView(arcade.View):
     def __init__(self):
         super().__init__()
+        self.sword_sound = arcade.Sound(":resources:sounds/hurt5.wav")
+        self.hit_sound = arcade.Sound(":resources:sounds/hit2.wav")
+        self.pickup_sound = arcade.Sound(":resources:sounds/coin1.wav")
         self.sword_list = arcade.SpriteList()
         self.player_sword_list = arcade.SpriteList()
         self.player_health = 1000
@@ -420,9 +423,11 @@ class GameView(arcade.View):
         self.player_sword_list.append(sword)
 
         self.player_attack_cooldown = self.player_attack_max_cooldown
+        arcade.play_sound(self.sword_sound)
 
     def take_damage(self, uron):
         self.player_health -= uron
+        arcade.play_sound(self.hit_sound)
         if self.player_health < 0:
             self.player_health = 0
             self.game_over()
@@ -586,6 +591,7 @@ class GameView(arcade.View):
 
         for i in self.poison_list:
             if arcade.check_for_collision(self.player_sprite, i):
+                arcade.play_sound(self.pickup_sound)
 
                 if self.max_health - self.player_health >= 200:
                     self.player_health += 200
@@ -595,6 +601,7 @@ class GameView(arcade.View):
         for i in self.new_sword_list:
             if arcade.check_for_collision(self.player_sprite, i):
                 self.player_damage = 1000
+                arcade.play_sound(self.pickup_sound)
 
                 i.remove_from_sprite_lists()
 
