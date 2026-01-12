@@ -140,6 +140,18 @@ class Skeleton(Enemy):
         self.enemy_type = "skeleton"
         self.score_value = 5
 
+class Poison(arcade.Sprite):
+    def __init__(self, x, y):
+        super().__init__("assets/images/зелье.png", scale=0.3)
+        self.center_x = x
+        self.center_y = y
+
+class New_sword(arcade.Sprite):
+    def __init__(self, x, y):
+        super().__init__("assets/images/меч_1.png", scale=0.1)
+        self.center_x = x
+        self.center_y = y
+
 
 class GameView(arcade.View):
     def __init__(self):
@@ -150,8 +162,12 @@ class GameView(arcade.View):
         self.max_health = 1000
         self.heal_rate = 1
         self.heal_timer = 0
+        self.player_damage = PLAYER_SWORD_DAMAGE
 
         self.frame_count = 0
+
+        self.poison = arcade.Sprite
+
 
         self.player_texture = arcade.load_texture("assets/images/рыцарь.png")
         self.knigf_texture = arcade.load_texture("assets/images/темный_рыцарь.png")
@@ -253,6 +269,16 @@ class GameView(arcade.View):
         self.player_health = self.max_health
         self.scene = self.create_scene()
         self.scene.add_sprite("Player", self.player_sprite)
+        self.new_sword_list = arcade.SpriteList()
+        new_sword_sprite = New_sword(600, 600)
+        self.new_sword_list.append(new_sword_sprite)
+        for i in self.new_sword_list:
+            self.scene.add_sprite("New_sword", i)
+        self.poison_list = arcade.SpriteList()
+        poison_sprite = Poison(700,700)
+        self.poison_list.append(poison_sprite)
+        for i in self.poison_list:
+            self.scene.add_sprite("Poison", i)
 
         self.all_enemies = arcade.SpriteList()
         goblin_sprite = Goblin(self.goblin_texture, scale=0.2)
@@ -502,27 +528,28 @@ class GameView(arcade.View):
                 if distance_to_player < i.attack_range:
                     self.enemy_attack(i)
 
-        swords_del = []
+        swords_to_remove = []
         for sword in self.sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
                 (sword.center_y - sword.start_y) ** 2
             )
             if distance_traveled > sword.max_range:
-                swords_del.append(sword)
+                swords_to_remove.append(sword)
                 continue
 
             if arcade.check_for_collision(self.player_sprite, sword):
-                swords_del.append(sword)
+                swords_to_remove.append(sword)
                 damage_amount = sword.damage
                 self.take_damage(damage_amount)
 
-        for sword in swords_del:
+        for sword in swords_to_remove:
             if sword in self.sword_list:
                 sword.remove_from_sprite_lists()
 
         swords_remove = []
         enemies_kill = []
+
 
         for sword in self.player_sword_list:
             distance_traveled = math.sqrt(
@@ -540,7 +567,8 @@ class GameView(arcade.View):
                 if arcade.check_for_collision(sword, j):
                     swords_remove.append(sword)
 
-                    dead = j.take_damage(PLAYER_SWORD_DAMAGE)
+
+                    dead = j.take_damage(self.player_damage)
 
                     if dead:
                         enemies_kill.append(j)
@@ -555,6 +583,21 @@ class GameView(arcade.View):
         for i in enemies_kill:
             i.is_alive = False
             self.dead_enemies_del()
+
+        for i in self.poison_list:
+            if arcade.check_for_collision(self.player_sprite, i):
+
+                if self.max_health - self.player_health >= 200:
+                    self.player_health += 200
+                else:
+                    self.player_health = self.max_health
+                i.remove_from_sprite_lists()
+        for i in self.new_sword_list:
+            if arcade.check_for_collision(self.player_sprite, i):
+                self.player_damage = 1000
+
+                i.remove_from_sprite_lists()
+
 
         self.dead_enemies_del()
 
