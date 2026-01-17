@@ -1,6 +1,7 @@
 import arcade
 from arcade.types import Color
 from pathlib import Path
+from pyglet.graphics import Batch
 import math
 
 WINDOW_TITLE = "Return of the Kingdom"
@@ -18,7 +19,6 @@ SKELETON_SWORD_DAMAGE = 15
 
 BOSS_SWORD_MAX_ATTACK = 500
 
-CHARACTER_SCALING = 1
 TILE_SCALING = 2.5
 COIN_SCALING = 0.5
 SPRITE_PIXEL_SIZE = 128
@@ -26,12 +26,29 @@ GRID_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING * 2
 KNIGF_MOVEMENT_SPEED = 1
 SKELETON_MOVEMENT_SPEED = 0.8
 
-PLAYER_MOVEMENT_SPEED = 10
 GRAVITY = 0
 
 FOLLOW_DECAY_CONST = 0.1
 MOVEMENT_SPEED = 5
 
+class PauseView(arcade.View):
+    def __init__(self, game_view):
+        super().__init__()
+        self.game_view = game_view
+        self.batch = Batch()
+        self.pause_text = arcade.Text("Пауза", self.window.width / 2, self.window.height / 2,
+                                      arcade.color.WHITE, font_size=40, anchor_x="center", batch=self.batch)
+        self.space_text = arcade.Text("Нажми SPACE, чтобы продолжить", self.window.width / 2,
+                                      self.window.height / 2 - 50,
+                                      arcade.color.WHITE, font_size=20, anchor_x="center", batch=self.batch)
+
+    def on_draw(self):
+        self.clear()
+        self.batch.draw()
+
+    def on_key_press(self, key, modifiers):
+        if key == arcade.key.SPACE:
+            self.window.show_view(self.game_view)
 
 class Enemy(arcade.Sprite):
     def __init__(self, texture, scale=0.5, health=100, damage=20, attack_cooldown=60, attack_range=300, sword_max_range=SWORD_MAX_ATTACK):
@@ -169,8 +186,6 @@ class GameView(arcade.View):
 
         self.frame_count = 0
 
-        self.poison = arcade.Sprite
-
 
         self.player_texture = arcade.load_texture("assets/images/рыцарь.png")
         self.knigf_texture = arcade.load_texture("assets/images/темный_рыцарь.png")
@@ -179,7 +194,6 @@ class GameView(arcade.View):
         self.goblin_texture = arcade.load_texture("assets/images/гоблин.png")
         self.ghost_texture = arcade.load_texture("assets/images/призрак.png")
         self.boss_texture = arcade.load_texture("assets/images/темный_рыцарь.png")
-        self.tile_map = None
 
         self.camera_sprites = arcade.Camera2D()
         self.camera_bounds = self.window.rect
@@ -199,9 +213,6 @@ class GameView(arcade.View):
 
         self.score = 0
 
-        self.left_key_down = False
-        self.right_key_down = False
-        self.left_key_up = False
 
         self.score_display = arcade.Text(
             "Score: 0",
@@ -363,6 +374,9 @@ class GameView(arcade.View):
             self.player_sprite.change_x = MOVEMENT_SPEED
         elif key == arcade.key.SPACE:
             self.player_attack()
+        if key == arcade.key.ESCAPE:
+            pause_view = PauseView(self)
+            self.window.show_view(pause_view)
 
     def on_key_release(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.DOWN or key == arcade.key.W or key == arcade.key.S:
@@ -623,7 +637,6 @@ def main():
     window = arcade.Window(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
     game = GameView()
     game.reload()
-
     window.show_view(game)
     arcade.run()
 
