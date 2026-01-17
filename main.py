@@ -561,11 +561,6 @@ class GameView(arcade.View):
                 damage_amount = sword.damage
                 self.take_damage(damage_amount)
 
-
-        swords_remove = []
-        enemies_kill = []
-
-
         for sword in self.player_sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
