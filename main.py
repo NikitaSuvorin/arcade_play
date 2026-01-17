@@ -547,24 +547,20 @@ class GameView(arcade.View):
                 if distance_to_player < i.attack_range:
                     self.enemy_attack(i)
 
-        swords_to_remove = []
         for sword in self.sword_list:
             distance_traveled = math.sqrt(
                 (sword.center_x - sword.start_x) ** 2 +
                 (sword.center_y - sword.start_y) ** 2
             )
             if distance_traveled > sword.max_range:
-                swords_to_remove.append(sword)
+                sword.remove_from_sprite_lists()
                 continue
 
             if arcade.check_for_collision(self.player_sprite, sword):
-                swords_to_remove.append(sword)
+                sword.remove_from_sprite_lists()
                 damage_amount = sword.damage
                 self.take_damage(damage_amount)
 
-        for sword in swords_to_remove:
-            if sword in self.sword_list:
-                sword.remove_from_sprite_lists()
 
         swords_remove = []
         enemies_kill = []
@@ -576,7 +572,7 @@ class GameView(arcade.View):
                 (sword.center_y - sword.start_y) ** 2
             )
             if distance_traveled > PLAYER_SWORD_MAX_ATTACK:
-                swords_remove.append(sword)
+                sword.remove_from_sprite_lists()
                 continue
 
             for j in self.all_enemies:
@@ -584,24 +580,17 @@ class GameView(arcade.View):
                     continue
 
                 if arcade.check_for_collision(sword, j):
-                    swords_remove.append(sword)
+                    sword.remove_from_sprite_lists()
 
 
                     dead = j.take_damage(self.player_damage)
 
                     if dead:
-                        enemies_kill.append(j)
+                        j.is_alive = False
+                        self.dead_enemies_del()
                         self.score += j.score_value
 
                     break
-
-        for sword in swords_remove:
-            if sword in self.player_sword_list:
-                sword.remove_from_sprite_lists()
-
-        for i in enemies_kill:
-            i.is_alive = False
-            self.dead_enemies_del()
 
         for i in self.poison_list:
             if arcade.check_for_collision(self.player_sprite, i):
